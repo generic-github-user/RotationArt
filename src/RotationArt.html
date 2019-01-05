@@ -1,0 +1,320 @@
+<!-- Based loosely on https://scratch.mit.edu/projects/3158394/ -->
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>
+		RotationArt
+	</title>
+	<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+	<style type="text/css">
+		* {
+			margin: 0px;
+			padding: 0px;
+			user-select: none;
+			outline: none;
+		}
+		body {
+			width: 100%;
+			height: 100%;
+		}
+		#canvas {
+			width: 100%;
+			height: 100%;
+			position: absolute;
+			z-index: 0;
+		}
+		#controls {
+			width: 10%;
+			height: 5%;
+
+			margin: 2%;
+			padding: 2%;
+			border: none;
+			border-radius: 10px;
+
+			background-color: rgba(0, 0, 0, 0.1);
+
+			position: absolute;
+			overflow: hidden;
+			z-index: 1;
+
+			transition: width 1.5s ease 0.5s, height 1s ease 0.5s, background-color 2s ease 0.5s, border-radius 2s ease 0.5s;
+		}
+		#controls:hover {
+			width: 40%;
+			height: 20%;
+
+			border-radius: 20px;
+			background-color: rgba(0, 0, 0, 0.5);
+
+			transition: width 1.5s ease, height 2s ease, background-color 2s ease, border-radius 2s ease;
+		}
+		#controls input[type="number"] {
+			padding: 2%;
+			margin: 1%;
+
+			border: none;
+			border-radius: 5px;
+
+			width: 20%;
+			height: 10%;
+
+			background-color: #DDD;
+			color: #777;
+			opacity: 0; /*Fix this*/
+
+			transition: border-radius 1s ease, width 1s ease, background-color 1s ease, color 0.5s ease, opacity 1s ease;
+		}
+		#controls input[type="number"]:hover {
+			border-radius: 15px;
+			width: 25%;
+
+			background-color: #EEE;
+			color: #333;
+
+			transition: border-radius 1s ease, width 1s ease, background-color 1s ease, color 0.5s ease, opacity 1s ease;
+		}
+		#controls input[type="number"]:focus {
+			border-radius: 15px;
+			width: 30%;
+
+			background-color: #FFF;
+			color: #000;
+
+			transition: border-radius 1s ease, width 1s ease, background-color 1s ease, color 0.5s ease, opacity 0.25s ease;
+		}
+		#controls:hover .input[type="number"] {
+			opacity: 1;
+			transition: border-radius 1s ease, width 1s ease, background-color 1s ease, color 0.5s ease, opacity 0.5s ease 0.5s;
+		}
+
+		/* From https://stackoverflow.com/questions/3790935/can-i-hide-the-html5-number-input-s-spin-box/22559163#22559163 */
+		input[type="number"] {
+		    -moz-appearance:textfield;
+		}
+		input::-webkit-outer-spin-button,
+		input::-webkit-inner-spin-button {
+		    -webkit-appearance: none;
+		}
+	</style>
+</head>
+	<body>
+		<canvas id="canvas" width="512" height="512"></canvas>
+
+		<div id="controls">
+			<input type="number" id="levels-field" placeholder="Levels" oninput="update();" onchange="constrainInputs();">
+			</input>
+			<input type="number" id="pointsNumber-field" placeholder="Points" oninput="update();" onchange="constrainInputs();">
+			</input>
+			<input type="number" step=".01" id="point-spacing-field" placeholder="Point spacing" oninput="update();" onchange="constrainInputs();">
+			</input>
+			<input type="number" id="point-size-field" placeholder="Point size" oninput="update();" onchange="constrainInputs();">
+			</input>
+			<input type="number" step=".01" id="opacity-field" placeholder="Opacity" oninput="update();" onchange="constrainInputs();">
+			</input>
+			<button>
+				<p>
+					Import
+				</p>
+			</button>
+			<button>
+				<p>
+					Export
+				</p>
+			</button>
+		</div>
+
+		<script type="text/javascript">
+			//
+			canvas = document.getElementById("canvas");
+			context = canvas.getContext("2d");
+
+			// Adjust size of canvas to match window size
+			function fitCanvas() {
+				// Set width to be equal to window width
+				context.canvas.width = window.innerWidth;
+				// Set height to be equal to window height
+				context.canvas.height = window.innerHeight;
+			}
+
+			var levels = 3;
+			var animate = false; //
+			var zoom = 1; //
+
+			var pointsNumber = 50000;
+			var pointSpacing = 1;
+			var pointSize = 1;
+
+			var opacity = 1;
+			var startingHue = Math.random() * 360;
+
+			var time = 0;
+
+			// Regenerate rotation speed and arm length settings; this must be done whenever the number of levels is changed
+			function generateSettings() {
+				rotationSpeeds = [
+
+				];
+				rotationSpeedsTargets = [
+
+				];
+				lengths = [
+
+				];
+				lengthsTargets = [
+
+				];
+				for (var i = 0; i < levels; i ++) {
+					rotationSpeeds.push((Math.random() * 1) - 0.5);
+					rotationSpeedsTargets.push((Math.random() * 1) - 0.5);
+
+					lengths.push((Math.random() + 1) * (100 / levels));
+					lengthsTargets.push((Math.random() + 1) * (100 / levels));
+				}
+			}
+
+			generateSettings();
+
+			function constrainInputs() {
+				var levelsField = document.getElementById("levels-field");
+				if (parseInt(levelsField.value) < 1) {
+					levelsField.value = 1;
+					levels = 1;
+				}
+
+				var pointsNumberField = document.getElementById("pointsNumber-field");
+				if (parseInt(pointsNumberField.value) < 100) {
+					pointsNumberField.value = 100;
+					pointsNumber = 100;
+				}
+
+				var pointSpacingField = document.getElementById("point-spacing-field");
+				if (pointSpacingField.value !== "") {
+					pointSpacingField.value = Math.round(parseFloat(pointSpacingField.value) * 100) / 100;
+				}
+				else if (parseFloat(pointSpacingField.value) < 1) {
+					pointSpacingField.value = 1;
+					pointSpacing = 1;
+				}
+
+				var pointSizeField = document.getElementById("point-size-field");
+				if (parseInt(pointSizeField.value) < 1) {
+					pointSizeField.value = 1;
+					pointSize = 1;
+				}
+
+				var opacityField = document.getElementById("opacity-field");
+				if (opacityField.value !== "") {
+					opacityField.value = Math.round(parseFloat(opacityField.value) * 100) / 100;
+				}
+				if (parseFloat(opacityField.value) < 0) {
+					opacityField.value = 0;
+					opacity = 0;
+				}
+				else if (parseFloat(opacityField.value) > 1) {
+					opacityField.value = 1;
+					opacity = 1;
+				}
+			}
+
+			// From https://stackoverflow.com/questions/17410809/how-to-calculate-rotation-in-2d-in-javascript/17411276#17411276
+			function rotate(cx, cy, x, y, angle) {
+				var radians = (Math.PI / 180) * angle,
+				cos = Math.cos(radians),
+			      sin = Math.sin(radians),
+			      nx = (cos * (x - cx)) + (sin * (y - cy)) + cx,
+			      ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
+				return [nx, ny];
+			}
+
+			// Rendering function for program - handles calculations and canvas display
+			function update() {
+				fitCanvas();
+
+				var levelsField = document.getElementById("levels-field");
+				if (levelsField.value !== "") {
+					levels = parseInt(levelsField.value);
+					generateSettings();
+				}
+				var pointsNumberField = document.getElementById("pointsNumber-field");
+				if (pointsNumberField.value !== "") {
+					pointsNumber = parseInt(pointsNumberField.value);
+				}
+				var pointSpacingField = document.getElementById("point-spacing-field");
+				if (pointSpacingField.value !== "") {
+					pointSpacing = parseFloat(pointSpacingField.value);
+				}
+				var pointSizeField = document.getElementById("point-size-field");
+				if (pointSizeField.value !== "") {
+					pointSize = parseInt(pointSizeField.value);
+				}
+				var opacityField = document.getElementById("opacity-field");
+				if (opacityField.value !== "") {
+					opacity = parseFloat(opacityField.value);
+				}
+
+				var points = [
+					{
+						x: canvas.width / 2,
+						y: canvas.height / 2
+					}
+				];
+				for (var i = 0; i < levels; i ++) {
+					points.push(
+						{
+							x: canvas.width / 2,
+							y: (canvas.height / 2) - ((i + 1) * lengths[i])
+						}
+					);
+				}
+
+				if (animate == true) {
+					// Reset canvas
+						// Set fill color to default canvas background color
+						context.fillStyle = "rgba(255, 255, 255, 1)";
+						// Fill canvas
+						context.fillRect(0, 0, canvas.width, canvas.height);
+				}
+
+				for (var i = 0; i < pointsNumber; i ++) {
+					for (var j = 1; j < points.length; j ++) {
+						var rotatedPoint = rotate(points[j - 1].x, points[j - 1].y, points[j].x, points[j].y, rotationSpeeds[j - 1] * pointSpacing);
+						points[j].x = rotatedPoint[0];
+						points[j].y = rotatedPoint[1];
+					}
+
+					if (animate == true) {
+						var hue = ((i * (50 / pointsNumber)) + startingHue) + time;
+					}
+					else {
+						var hue = ((i * (50 / pointsNumber)) + startingHue);
+					}
+					var lightness = ((i * (25 / pointsNumber)) + 50);
+					context.fillStyle = "hsla(" + hue + ", 100%, " + lightness + "%, " + opacity + ")";
+					context.fillRect(points[points.length - 1].x, points[points.length - 1].y, pointSize, pointSize);
+				}
+
+				if (animate == true) {
+					for (var i = 0; i < rotationSpeeds.length; i ++) {
+						//rotationSpeeds[i] += (Math.random() - 0.5) / 5000;
+						rotationSpeeds[i] += (rotationSpeedsTargets[i] - rotationSpeeds[i]) / 100000;
+						if (rotationSpeeds[i] - rotationSpeedsTargets[i] < 0.05) {
+							rotationSpeedsTargets[i] = (Math.random() * 1) - 0.5;
+						}
+					}
+					for (var i = 0; i < rotationSpeeds.length; i ++) {
+
+					}
+					time ++;
+				}
+			}
+
+			if (animate == true) {
+				var interval = window.setInterval(update, 10);
+			}
+			update();
+
+		</script>
+	</body>
+</html>
